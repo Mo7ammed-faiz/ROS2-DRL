@@ -1,0 +1,13 @@
+=== Test complete: 200 episodes on session 'dqn_1_stage_4' (loaded ep 2700) ===
+  SUCCESS     : 110  ( 55.0%)
+  COLL_WALL   :  11  (  5.5%)
+  COLL_OBST   :  66  ( 33.0%)
+  TIMEOUT     :  13  (  6.5%)
+
+Notes:
+- This is the baseline test result. Trained from scratch for 2700 episodes.
+- Resume run from 2700 -> 5000 regressed (epsilon reset bug — fixed in v2 codebase).
+- Original training peak (last-100-window): 83.8% success at episode 2700.
+- Train-vs-test gap is real (~28%): test policy is deterministic, training cumulative
+  includes 7.5% epsilon-greedy noise + curriculum effects.
+- Repo's published Fig. 6 cumulative training success: ~56%. Our test 55% matches.

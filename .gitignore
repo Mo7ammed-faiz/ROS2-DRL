@@ -1,0 +1,31 @@
+# colcon build artifacts
+/build/
+/install/
+/log/
+/dds/
+
+# Large RL artifacts (share via Drive link, not Git)
+src/model/
+baseline/checkpoint/
+
+# Pre-cleanup snapshot of the old workspace
+archive_pre_repo_cleanup/
+
+# Older unrelated experiment logs
+experiment_logs/
+
+# Project artifacts
+output.py
+_figure.png
+src/.claude/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db

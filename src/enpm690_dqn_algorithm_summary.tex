@@ -1,0 +1,497 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\title{ENPM690 TurtleBot3 DQN Algorithm Structure Summary}
+\author{Workspace code summary}
+\date{May 1, 2026}
+
+\begin{document}
+\maketitle
+
+\section{Scope}
+
+This document summarizes the reinforcement-learning implementation currently present in the workspace under:
+\begin{itemize}[noitemsep]
+    \item \texttt{enpm690\_dqn/enpm690\_dqn/dqn.py}
+    \item \texttt{enpm690\_dqn/enpm690\_dqn/dqn\_envi.py}
+    \item \texttt{turtlebot3\_msgs/srv/DrlStep.srv}
+    \item \texttt{turtlebot3\_simulations/turtlebot3\_gazebo/models/turtlebot3\_burger/model.sdf}
+\end{itemize}
+
+The checked code implements a discrete-action Deep Q-Network (DQN) agent for TurtleBot3 autonomous navigation in Gazebo. The task is goal reaching while avoiding static and dynamic obstacles.
+
+\section{Algorithm Structure}
+
+\subsection{Main Nodes and Runtime Flow}
+
+The implementation is split into an agent node and an environment node.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.28\linewidth} p{0.62\linewidth}}
+\toprule
+\textbf{Component} & \textbf{Role} \\
+\midrule
+\texttt{DqnAgent} in \texttt{dqn.py} & Runs training or testing, chooses actions, stores transitions, trains the neural network, logs episode results, and saves checkpoints. \\
+\texttt{ENPM690Environment} in \texttt{dqn\_envi.py} & Reads LiDAR, odometry, goal pose, and obstacle odometry; applies velocity commands; builds the state vector; computes reward; detects terminal outcomes. \\
+\texttt{DrlStep.srv} & Service interface used by the agent to send the current and previous action and receive next state, reward, done flag, outcome code, and distance traveled. \\
+\texttt{Goal.srv} & Service used by the agent to wait until a new goal is available. \\
+\bottomrule
+\end{tabular}
+\caption{Main ROS 2 components in the DQN workflow.}
+\end{table}
+
+The training loop follows this sequence:
+\begin{enumerate}[noitemsep]
+    \item Pause simulation and wait for a goal.
+    \item Initialize the episode by requesting an initial state from the environment.
+    \item During the observation phase, choose random actions.
+    \item After observation, use an epsilon-greedy DQN policy.
+    \item Send the selected action to the environment through \texttt{step\_comm}.
+    \item Receive next state, reward, terminal flag, outcome, and distance.
+    \item Store the transition in the replay buffer.
+    \item Sample mini-batches from replay memory and update the DQN.
+    \item At episode end, log reward, outcome, steps, duration, replay memory length, and losses.
+    \item Save checkpoints every 100 training episodes.
+\end{enumerate}
+
+\subsection{DQN Variant}
+
+The code is not a plain single-network DQN. It combines:
+\begin{itemize}[noitemsep]
+    \item \textbf{Experience replay}: transitions are stored in a replay buffer and sampled randomly.
+    \item \textbf{Target network}: a separate target network evaluates the target Q-value.
+    \item \textbf{Double DQN target}: the online network selects the next action, while the target network evaluates that action.
+    \item \textbf{Dueling DQN head}: the network separates state value and action advantage.
+    \item \textbf{Epsilon-greedy exploration}: random actions are selected with probability $\epsilon$ during training.
+\end{itemize}
+
+The Double DQN target is implemented as:
+\[
+    a^\ast = \arg\max_{a'} Q_{\theta}(s', a')
+\]
+\[
+    y = r + \gamma Q_{\theta^-}(s', a^\ast)(1-d)
+\]
+where $Q_{\theta}$ is the online network, $Q_{\theta^-}$ is the target network, $r$ is reward, $\gamma$ is the discount factor, and $d$ is the done flag.
+
+\section{Neural Network Structure}
+
+\subsection{Input and Output}
+
+The model reads the number of LiDAR samples from the TurtleBot3 Burger SDF file. In this workspace, the SDF has:
+\[
+    N_{\text{scan}} = 60
+\]
+
+The DQN state size is:
+\[
+    N_{\text{state}} = N_{\text{scan}} + 4 = 64
+\]
+
+The action size is:
+\[
+    N_{\text{action}} = 12
+\]
+
+\subsection{Dueling Network}
+
+The neural network is defined by the \texttt{Actor} class in \texttt{dqn.py}. Although the class name is \texttt{Actor}, in this code it functions as the DQN Q-network.
+
+\[
+    s \rightarrow \text{Linear}(64, 1024) \rightarrow \text{ReLU}
+      \rightarrow \text{Linear}(1024, 1024) \rightarrow \text{ReLU}
+\]
+
+The shared feature output is then split into:
+\[
+    V(s) = \text{Linear}(1024, 1)
+\]
+\[
+    A(s,a) = \text{Linear}(1024, 12)
+\]
+
+The final Q-values are computed with the dueling formula:
+\[
+    Q(s,a) = V(s) + \left(A(s,a) - \frac{1}{|\mathcal{A}|}\sum_{a'} A(s,a')\right)
+\]
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Layer / block} & \textbf{Size} \\
+\midrule
+Input state & 64 \\
+Hidden layer 1 & 1024, ReLU \\
+Hidden layer 2 & 1024, ReLU \\
+Value head & 1 output \\
+Advantage head & 12 outputs \\
+Final output & 12 Q-values \\
+\bottomrule
+\end{tabular}
+\caption{Dueling DQN architecture used in the checked code.}
+\end{table}
+
+Weights are initialized with Xavier uniform initialization, and biases are initialized to $0.01$.
+
+\section{State Space}
+
+\subsection{State Vector Definition}
+
+The environment constructs the state in \texttt{get\_state()} as:
+\[
+    s_t =
+    \left[
+    L_1, L_2, \ldots, L_{60},
+    \frac{d_g}{d_{\max}},
+    \frac{\theta_g}{\pi},
+    a^{\text{prev}}_{\text{linear}},
+    a^{\text{prev}}_{\text{angular}}
+    \right]
+\]
+
+where:
+\begin{itemize}[noitemsep]
+    \item $L_i$ is the $i$th LiDAR range sample.
+    \item $d_g$ is the current distance from robot to goal.
+    \item $d_{\max}$ is the maximum possible goal distance in the arena.
+    \item $\theta_g$ is the relative goal angle.
+    \item $a^{\text{prev}}_{\text{linear}}$ is the previous normalized linear action.
+    \item $a^{\text{prev}}_{\text{angular}}$ is the previous normalized angular action.
+\end{itemize}
+
+\subsection{State Normalization}
+
+The code applies partial normalization:
+\begin{itemize}[noitemsep]
+    \item Goal distance is clipped and normalized:
+    \[
+        \hat{d}_g = \text{clip}\left(\frac{d_g}{d_{\max}}, 0, 1\right)
+    \]
+    \item Goal angle is normalized by $\pi$:
+    \[
+        \hat{\theta}_g = \frac{\theta_g}{\pi}
+    \]
+    \item Previous actions are stored in normalized action units.
+\end{itemize}
+
+The LiDAR range limit is $3.5$ m. The SDF scan configuration uses $60$ samples over approximately a full $360^\circ$ scan, from $0.0$ to $6.28$ radians.
+
+\section{Action Space}
+
+\subsection{Discrete Action Set}
+
+The policy chooses one of 12 discrete actions. Each action is represented as:
+\[
+    a = [a_{\text{linear}}, a_{\text{angular}}]
+\]
+
+The code stores these values as normalized commands:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ccc}
+\toprule
+\textbf{Action index} & \textbf{Normalized linear} & \textbf{Normalized angular} \\
+\midrule
+0 & 0.0 & -0.5 \\
+1 & 0.6 & -1.0 \\
+2 & 0.6 & -0.5 \\
+3 & 0.3 & -1.0 \\
+4 & 0.3 & -0.5 \\
+5 & 1.0 & 0.0 \\
+6 & 0.5 & 0.0 \\
+7 & 0.3 & 0.5 \\
+8 & 0.3 & 1.0 \\
+9 & 0.6 & 0.5 \\
+10 & 0.6 & 1.0 \\
+11 & 0.0 & 0.5 \\
+\bottomrule
+\end{tabular}
+\caption{Discrete action set used by the DQN agent.}
+\end{table}
+
+\subsection{Conversion to Robot Velocity}
+
+The environment converts normalized actions to velocity commands:
+\[
+    v = a_{\text{linear}} \cdot v_{\max}
+\]
+\[
+    \omega = a_{\text{angular}} \cdot \omega_{\max}
+\]
+
+The constants in the environment are:
+\[
+    v_{\max} = 0.22 \text{ m/s}
+\]
+\[
+    \omega_{\max} = 2.0 \text{ rad/s}
+\]
+
+Therefore, for example:
+\begin{itemize}[noitemsep]
+    \item normalized linear $1.0$ becomes $0.22$ m/s,
+    \item normalized linear $0.6$ becomes $0.132$ m/s,
+    \item normalized linear $0.3$ becomes $0.066$ m/s,
+    \item normalized angular $1.0$ becomes $2.0$ rad/s,
+    \item normalized angular $-1.0$ becomes $-2.0$ rad/s.
+\end{itemize}
+
+The environment variable \texttt{enable\_backward} is set to \texttt{True}, but the current discrete action list does not contain negative linear values.
+
+\section{Reward Design}
+
+\subsection{Reward Formula}
+
+The custom ENPM690 reward function is:
+\[
+    R = R_{\text{yaw}} + R_{\text{progress}} + R_{\text{obstacle}} + R_{\text{step}} + R_{\text{terminal}}
+\]
+
+The yaw penalty is:
+\[
+    R_{\text{yaw}} = -0.3|\theta_g|
+\]
+
+The progress reward is:
+\[
+    R_{\text{progress}} = 200(d_{\text{prev}} - d_g)
+\]
+This gives positive reward when the robot moves closer to the goal and negative reward when it moves away.
+
+The obstacle penalty is:
+\[
+    R_{\text{obstacle}} =
+    \begin{cases}
+    -25, & d_{\text{obstacle}} < 0.25 \\
+    0, & d_{\text{obstacle}} \geq 0.25
+    \end{cases}
+\]
+
+The constant step penalty is:
+\[
+    R_{\text{step}} = -2
+\]
+
+The terminal reward is:
+\[
+    R_{\text{terminal}} =
+    \begin{cases}
+    +3500, & \text{goal reached} \\
+    -2500, & \text{static or dynamic collision} \\
+    0, & \text{timeout or tumble in this reward function}
+    \end{cases}
+\]
+
+\subsection{Terminal Outcomes}
+
+The environment uses the following outcome codes:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{cll}
+\toprule
+\textbf{Code} & \textbf{Outcome} & \textbf{Condition} \\
+\midrule
+0 & Running / unknown & No terminal condition yet \\
+1 & Success & Goal distance below goal threshold \\
+2 & Static collision & Minimum obstacle distance below collision threshold \\
+3 & Dynamic obstacle collision & Collision near a dynamic obstacle \\
+4 & Timeout & Simulation time reaches the episode deadline \\
+5 & Tumble & Robot tilt exceeds the allowed range \\
+\bottomrule
+\end{tabular}
+\caption{Episode outcome codes used by the environment and logger.}
+\end{table}
+
+\subsection{Environment Thresholds}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Arena length & 4.2 m \\
+Arena width & 4.2 m \\
+Maximum goal distance & $\sqrt{4.2^2 + 4.2^2}$ m \\
+Goal threshold & 0.25 m \\
+Collision distance & 0.14 m \\
+Obstacle radius & 0.16 m \\
+LiDAR max distance & 3.5 m \\
+Episode timeout & 50 s \\
+Reset grace period & 30 local steps \\
+Maximum dynamic obstacles & 6 \\
+\bottomrule
+\end{tabular}
+\caption{Environment constants from \texttt{dqn\_envi.py}.}
+\end{table}
+
+\section{Hyperparameters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Hyperparameter} & \textbf{Value in code} \\
+\midrule
+Algorithm label & DQN \\
+Training episodes & 7000 \\
+Testing episodes & 200 \\
+Observation steps before policy training & 25000 \\
+State size & 64 \\
+Action size & 12 \\
+Hidden layer size & 1024 \\
+Batch size & 128 \\
+Replay buffer size & 1,000,000 transitions \\
+Discount factor $\gamma$ & 0.99 \\
+Learning rate & 0.003 \\
+Optimizer & AdamW \\
+Target soft update factor $\tau$ & 0.003 \\
+Hard target update frequency & 500 training iterations \\
+Additional soft update frequency & every 10 training iterations when not hard-updating \\
+Step sleep time & 0.01 s \\
+Initial epsilon & 1.0 \\
+Epsilon decay & 0.9995 per training update \\
+Minimum epsilon & 0.075 \\
+Loss used in active update & Mean squared error loss \\
+Gradient clipping & Norm clipped to 1.0 with norm type 1 \\
+Frame stacking flag & Disabled \\
+Stack depth if enabled & 3 \\
+Frame skip if enabled & 4 \\
+\bottomrule
+\end{tabular}
+\caption{DQN hyperparameters from the current workspace code.}
+\end{table}
+
+\section{Replay Buffer}
+
+The replay buffer stores transitions:
+\[
+    (s_t, a_t, r_t, s_{t+1}, d_t)
+\]
+
+where $d_t$ is the terminal flag. The buffer is implemented with a fixed-length deque:
+\[
+    |\mathcal{D}|_{\max} = 1{,}000{,}000
+\]
+
+During training, a random mini-batch of up to 128 transitions is sampled for each update.
+
+\section{Hardware and Software Environment}
+
+The following specifications were checked from the local laptop environment used for this workspace. The operating system visible to the terminal is WSL2 Linux.
+
+\subsection{Hardware Components}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.25\linewidth} p{0.32\linewidth} p{0.33\linewidth}}
+\toprule
+\textbf{Component} & \textbf{Specification} & \textbf{Description / relevance} \\
+\midrule
+CPU & 13th Gen Intel(R) Core(TM) i7-13650HX & Main processor used for ROS 2 nodes, Gazebo process management, Python execution, data loading, replay-buffer sampling, and non-GPU parts of training. \\
+CPU architecture & x86\_64 & 64-bit Intel/AMD-compatible architecture used by the Python, ROS 2, and PyTorch runtime. \\
+Logical CPUs visible & 14 threads & Number of processing threads visible inside the current WSL2 environment. \\
+CPU cores visible & 7 cores, 2 threads per core & Core layout reported by \texttt{lscpu} inside WSL2. \\
+CPU cache & L1d 336 KiB, L1i 224 KiB, L2 8.8 MiB, L3 24 MiB & Processor cache hierarchy available for simulation, Python, and neural-network preprocessing workloads. \\
+GPU & NVIDIA GeForce RTX 4060 Laptop GPU & CUDA-capable GPU used by PyTorch when \texttt{torch.cuda.is\_available()} is true. \\
+GPU memory & 8188 MiB & Dedicated GPU memory reported by \texttt{nvidia-smi}. Used for model tensors, mini-batches, and CUDA operations. \\
+GPU driver & NVIDIA driver 595.71 & Driver currently exposing the GPU to the environment. \\
+CUDA through PyTorch & CUDA 12.4 & CUDA runtime version used by the installed PyTorch build. \\
+System memory & 11 GiB total & RAM visible to WSL2 for ROS 2, Gazebo-related processes, Python, replay buffer, and logs. \\
+Swap memory & 3.0 GiB total & Additional virtual memory available if physical RAM is exceeded. \\
+Operating environment & Linux 6.6.87.2-microsoft-standard-WSL2 & Linux environment where these checks and Python commands were run. \\
+\bottomrule
+\end{tabular}
+\caption{Laptop hardware and runtime environment visible from the workspace terminal.}
+\end{table}
+
+\subsection{Python Libraries Used}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{p{0.23\linewidth} p{0.17\linewidth} p{0.50\linewidth}}
+\toprule
+\textbf{Library / package} & \textbf{Version} & \textbf{Use in this project} \\
+\midrule
+Python & 3.12.3 & Main runtime for the ROS 2 Python nodes and DQN training code. \\
+PyTorch / \texttt{torch} & 2.6.0+cu124 & Defines and trains the DQN neural network, handles CUDA tensors, optimizers, losses, and gradient updates. \\
+NumPy & 2.4.4 & Used for numerical arrays, random action handling, state conversion, clipping, and batch preparation. \\
+Matplotlib & 3.10.8 & Used for plotting training graphs and saving visual summaries of outcomes, reward, and losses. \\
+PyQt5 & 5.15.10 & GUI dependency used by the optional real-time visualizer in the DQN code. \\
+\texttt{pyqtgraph} & Not installed in checked Python environment & Imported by the optional visualization code for live plotting of states, actions, layers, and accumulated reward. It may need installation if visualization is enabled. \\
+\texttt{rclpy} & 7.1.11 & ROS 2 Python client library used to implement the DQN agent, environment node, publishers, subscribers, services, and clients. \\
+\texttt{std\_srvs} & 5.3.7 & Provides standard ROS 2 services such as \texttt{Empty} for pausing and unpausing simulation physics. \\
+\texttt{geometry\_msgs} & 5.3.7 & Provides ROS 2 message types such as \texttt{Twist} and \texttt{Pose} for robot velocity commands and goal poses. \\
+\texttt{nav\_msgs} & 5.3.7 & Provides odometry message types used to track robot and obstacle motion. \\
+\texttt{sensor\_msgs} & 5.3.7 & Provides \texttt{LaserScan}, which is the main perception input for the DQN state. \\
+\texttt{rosgraph\_msgs} & 2.0.3 & Provides clock messages used by the environment for simulation-time handling. \\
+\texttt{turtlebot3\_msgs} & 2.4.0 & Provides custom project services such as \texttt{DrlStep}, \texttt{Goal}, and \texttt{RingGoal}. \\
+\texttt{ament-index-python} & 1.8.2 & ROS 2 package-index helper used by ROS Python packages for locating installed package resources. \\
+\texttt{setuptools} & 68.1.2 & Python packaging tool used by the ROS 2 Python package setup. \\
+\bottomrule
+\end{tabular}
+\caption{Python and ROS 2 Python libraries relevant to the current DQN workspace.}
+\end{table}
+
+\section{Training and Testing Behavior}
+
+\subsection{Training}
+
+Training uses an initial observation phase of 25,000 global steps. During this phase, actions are random and the episode output reports observation progress. Once the replay buffer contains at least one batch, network updates are performed from sampled replay transitions.
+
+After the observation phase, action selection is epsilon-greedy:
+\[
+    a_t =
+    \begin{cases}
+    \text{random action}, & \text{with probability } \epsilon \\
+    \arg\max_a Q(s_t,a), & \text{otherwise}
+    \end{cases}
+\]
+
+Epsilon decays after training updates:
+\[
+    \epsilon \leftarrow \epsilon \cdot 0.9995
+\]
+until it reaches the minimum value $0.075$.
+
+\subsection{Checkpointing and Logs}
+
+The code saves the model, graph data, and replay buffer every 100 training episodes. Training logs include:
+\begin{itemize}[noitemsep]
+    \item episode number,
+    \item accumulated reward,
+    \item outcome code,
+    \item episode duration,
+    \item number of episode steps,
+    \item total global steps,
+    \item replay memory length,
+    \item average critic loss field,
+    \item average actor loss field.
+\end{itemize}
+
+For this DQN implementation, the naming of actor/critic loss fields is inherited from the project logging style. The active DQN update returns the loss through the second returned value, so the logged ``actor loss'' column is the meaningful DQN Q-loss field in this code path.
+
+\section{Concise Interpretation}
+
+The current workspace implements a goal-directed TurtleBot3 navigation learner using a dueling Double DQN with discrete velocity actions. The state is mostly perception-driven, consisting of 60 LiDAR samples plus compact goal and action-history information. The reward strongly prioritizes reaching the goal, strongly penalizes collisions, gives shaped progress reward for moving closer to the goal, penalizes poor heading alignment, penalizes near-obstacle behavior, and applies a constant step cost to encourage shorter paths.
+
+The most important practical properties of the implementation are:
+\begin{itemize}[noitemsep]
+    \item It is a discrete-action method, not continuous control.
+    \item The neural network outputs 12 Q-values, one per velocity command.
+    \item The environment scales normalized actions into TurtleBot3 \texttt{cmd\_vel} commands.
+    \item Training depends heavily on the 25,000-step random observation phase.
+    \item The reward is dominated by terminal success and collision terms, but per-step progress and obstacle penalties shape behavior before termination.
+\end{itemize}
+
+\end{document}
