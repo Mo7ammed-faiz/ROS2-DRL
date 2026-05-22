@@ -16,14 +16,20 @@
 #
 # Authors: Ryan Shim, Gilbert, Tomas
 
-'''
-This file containes the code used for training a turtlebot3 robot in autonomous navigation and obstacle avoidance behavior on gazebo using DQN
-
-This file is part of the submission for ENPM690 Final Project 
-
-The code used is majorly referenced from https://github.com/tomasvr/turtlebot3_drlnav
-
-'''
+# Copyright 2026 Mohammed Faiz Mohammed Noor Ahmed & Al-hassen Mohammed Ahmed Sabeeh
+#
+# D3QN Navigation — B.Sc. Thesis Project
+# "Deep Reinforcement Learning Approach for Effective Indoor Mobile Robot Navigation"
+# University of Khartoum, Faculty of Engineering, July 2026
+#
+# Authors:
+#   Mohammed Faiz Mohammed Noor Ahmed (184089)  <mo7ammedfaiz@gmail.com>
+#   Al-hassen Mohammed Ahmed Sabeeh  (184025)
+#
+# Supervisor: Prof. Sharief F. Babikir
+#
+# Reference implementation: https://github.com/tomasvr/turtlebot3_drlnav
+# Original code copyright ROBOTIS CO., LTD., licensed under Apache License 2.0.
 
 import os
 import random
@@ -44,9 +50,9 @@ class DQNGoals(Node):
         super().__init__('dqn_goals')
         
         ## Getting the path to goal box and opening it
-        self.entity_dir_path = (os.path.dirname(os.path.realpath(__file__))).replace(
-            'enpm690_dqn/lib/python3.10/site-packages/enpm690_dqn',
-            'turtlebot3_gazebo/share/turtlebot3_gazebo/models/turtlebot3_drl_world/goal_box')
+        self.entity_dir_path = os.path.join(
+            os.getenv('DRLNAV_BASE_PATH'),
+            'src/turtlebot3_simulations/turtlebot3_gazebo/models/turtlebot3_drl_world/goal_box')
         self.entity_path = os.path.join(self.entity_dir_path, 'model.sdf')
         self.entity = open(self.entity_path, 'r').read()
         self.entity_name = 'goal'

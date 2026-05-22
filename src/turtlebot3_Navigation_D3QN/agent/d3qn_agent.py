@@ -16,14 +16,20 @@
 #
 # Authors: Ryan Shim, Gilbert, Tomas
 
-'''
-This file containes the code used for training a turtlebot3 robot in autonomous navigation and obstacle avoidance behavior on gazebo using DQN
-
-This file is part of the submission for ENPM690 Final Project 
-
-The code used is majorly referenced from https://github.com/tomasvr/turtlebot3_drlnav
-
-'''
+# Copyright 2026 Mohammed Faiz Mohammed Noor Ahmed & Al-hassen Mohammed Ahmed Sabeeh
+#
+# D3QN Navigation — B.Sc. Thesis Project
+# "Deep Reinforcement Learning Approach for Effective Indoor Mobile Robot Navigation"
+# University of Khartoum, Faculty of Engineering, July 2026
+#
+# Authors:
+#   Mohammed Faiz Mohammed Noor Ahmed (184089)  <mo7ammedfaiz@gmail.com>
+#   Al-hassen Mohammed Ahmed Sabeeh  (184025)
+#
+# Supervisor: Prof. Sharief F. Babikir
+#
+# Reference implementation: https://github.com/tomasvr/turtlebot3_drlnav
+# Original code copyright ROBOTIS CO., LTD., licensed under Apache License 2.0.
 
 import copy
 import os
@@ -57,7 +63,7 @@ pg.setConfigOptions(antialias=False)
 import torch.optim as optim
 
 MAX_EPISODES = 7000
-TEST_EPISODES = 200
+TEST_EPISODES = 50
 
 #Class to manage the storage of the model, weights, replay buffer and graph data
 class DqnAgent(Node):
@@ -370,7 +376,7 @@ class DQN(ABC):
         self.device = device
         self.simulation_speed = sim_speed
         #Get the number of scan samples from the model.sdf file
-        tree = ET.parse(os.getenv('DRLNAV_BASE_PATH') + '/src/turtlebot3_simulations/turtlebot3_gazebo/models/turtlebot3_burger/model.sdf')
+        tree = ET.parse(os.getenv('DRLNAV_BASE_PATH') + '/src/turtlebot3_simulations/turtlebot3_gazebo/models/turtlebot3_burger_classic/model.sdf')
         root = tree.getroot()
         for link in root.find('model').findall('link'):
             if link.get('name') == 'base_scan':
