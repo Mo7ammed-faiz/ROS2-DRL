@@ -1,4 +1,4 @@
-# Deep Reinforcement Learning for Effective Indoor Mobile Robot Navigation
+# Deep Reinforcement Learning Approach for Effective Indoor Mobile Robot Navigation
 
 ![ROS 2](https://img.shields.io/badge/ROS%202-Humble-blue?style=flat-square&logo=ros)
 ![Python](https://img.shields.io/badge/Python-3.10-blue?style=flat-square&logo=python)
@@ -6,13 +6,13 @@
 ![Gazebo](https://img.shields.io/badge/Gazebo-Classic-green?style=flat-square)
 ![License](https://img.shields.io/badge/License-Apache%202.0-yellow?style=flat-square)
 
-**B.Sc. Thesis — University of Khartoum, Faculty of Engineering, July 2026**
+
 
 > *"Deep Reinforcement Learning Approach for Effective Indoor Mobile Robot Navigation"*
 
 **Authors:**
-- Mohammed Faiz Mohammed Noor Ahmed (184089) — [mo7ammedfaiz@gmail.com](mailto:mo7ammedfaiz@gmail.com)
-- Al-hassen Mohammed Ahmed Sabeeh (184025) — [alhassensabeeh22@gmail.com](alhassensabeeh@gmail.com)
+- Mohammed Faiz Mohammed Noor Ahmed  — [mo7ammedfaiz@gmail.com](mailto:mo7ammedfaiz@gmail.com)
+- Al-hassen Mohammed Ahmed Sabeeh  — [alhassensabeeh22@gmail.com](alhassensabeeh@gmail.com)
 
 **Supervisor:** Prof. Sharief F. Babikir  
 **Department:** Electrical and Electronic Engineering
