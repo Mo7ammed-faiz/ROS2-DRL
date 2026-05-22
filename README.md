@@ -12,7 +12,7 @@
 
 **Authors:**
 - Mohammed Faiz Mohammed Noor Ahmed (184089) — [mo7ammedfaiz@gmail.com](mailto:mo7ammedfaiz@gmail.com)
-- Al-hassen Mohammed Ahmed Sabeeh (184025) 
+- Al-hassen Mohammed Ahmed Sabeeh (184025) — [alhassensabeeh22@gmail.com](alhassensabeeh@gmail.com)
 
 **Supervisor:** Prof. Sharief F. Babikir  
 **Department:** Electrical and Electronic Engineering
