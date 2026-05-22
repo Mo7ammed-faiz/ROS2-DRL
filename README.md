@@ -39,11 +39,11 @@ The project benchmarks D3QN against a reference DQN baseline through five target
 
 ### Baseline DQN
 
-<video src="https://github.com/user-attachments/assets/e426a348-9764-44d6-bff5-1229bef91d9c" width="450" height="350" controls></video>
+![Baseline DQN Demo](https://github.com/user-attachments/assets/e426a348-9764-446d-bff5-1229bef91d9c)
 
 ### Proposed D3QN
 
-<video src="https://github.com/user-attachments/assets/e50cb310-4c10-4ce-a821-400da9a95a4c" width="450" height="350" controls></video>
+![Proposed D3QN Demo](https://github.com/user-attachments/assets/e50cb310-4c1d-40ce-a821-400da9a95a4c)
 
 ---
 
