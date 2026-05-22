@@ -12,7 +12,7 @@
 
 **Authors:**
 - Mohammed Faiz Mohammed Noor Ahmed (184089) — [mo7ammedfaiz@gmail.com](mailto:mo7ammedfaiz@gmail.com)
-- Al-hassen Mohammed Ahmed Sabeeh (184025)
+- Al-hassen Mohammed Ahmed Sabeeh (184025) 
 
 **Supervisor:** Prof. Sharief F. Babikir  
 **Department:** Electrical and Electronic Engineering
@@ -77,7 +77,7 @@ D3QN achieves a **2.39× higher cumulative training success rate** in **31.4% fe
 
 ### State Vector (64-dimensional)
 
-```
+```plain
 S_t = [ L_1 ... L_60,  d_goal/d_max,  θ_goal/π,  v_lin_prev,  v_ang_prev ]
        └────────────┘  └─────────────────────────┘ └─────────────────────┘
        60 LiDAR rays      goal-relative info          previous action
@@ -85,7 +85,7 @@ S_t = [ L_1 ... L_60,  d_goal/d_max,  θ_goal/π,  v_lin_prev,  v_ang_prev ]
 
 ### Reward Function
 
-```
+```plain
 R_t = R_yaw + R_progress + R_obstacle + R_step + R_terminal
 
   R_yaw       = −0.3 × |θ_goal|
@@ -97,7 +97,7 @@ R_t = R_yaw + R_progress + R_obstacle + R_step + R_terminal
 
 ### Dueling Network
 
-```
+```plain
               ┌────────────────────────┐
               │  Shared MLP            │  (input → 512 → 1024 → 1024)
               └───────────┬────────────┘
@@ -111,7 +111,7 @@ R_t = R_yaw + R_progress + R_obstacle + R_step + R_terminal
 
 ## Repository Structure
 
-```
+```plain
 ROS2-DRL/
 ├── src/
 │   └── turtlebot3_Navigation_D3QN/
